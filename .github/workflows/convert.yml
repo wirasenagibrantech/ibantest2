@@ -1,0 +1,33 @@
+name: Convert XLSX to JSON
+
+on:
+  push:
+    paths:
+      - "data.xlsx"
+      - "convert.js"
+
+      jobs:
+        build:
+          runs-on: ubuntu-latest
+          steps:
+            - name: Checkout Repo
+            uses: actions/checkout@v3
+
+            - name: Install Node
+            uses: actions/setup-node@v3
+            with:
+              node-version: 18
+
+              - name: Install XLSX
+              run: npm install xlsx
+
+              - name: Run converter
+              run: node convert.js
+
+              - name: Commit & Push JSON Output
+              run: |
+              git config --global user.email "action@github.com"
+              git config --global user.name "GitHub Actions"
+              git add json/
+              git commit -m "Auto update JSON from XLSX" || echo "No changes"
+              git push
