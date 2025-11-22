@@ -1,61 +1,64 @@
 // convert.js
-const XLSX = require("xlsx");
 const fs = require("fs");
+const xlsx = require("xlsx");
 
-// === BACA FILE EXCEL ===
-const workbook = XLSX.readFile("data.xlsx");
-const sheet = workbook.Sheets[workbook.SheetNames[0]];
-const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+const file = xlsx.readFile("data.xlsx");
+const sheet = file.Sheets[file.SheetNames[0]];
+const rows = xlsx.utils.sheet_to_json(sheet, { raw: false });
 
-const bulanIndo = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+// Pastikan folder output exist
+if (!fs.existsSync("data")) fs.mkdirSync("data");
 
-// --- KONVERSI TANGGAL EXCEL ---
-function excelToJSDate(excel) {
-  return new Date((excel - 25569) * 86400 * 1000);
+// Convert Excel number / date to real Date()
+function parseDate(d) {
+    return new Date(d);
 }
 
-// === DATA NORMAL ===
-const data = rows.map(r => {
-  const d = excelToJSDate(r.tanggal);
-  return {
-    tanggal: `${d.getDate()} ${bulanIndo[d.getMonth()]} ${d.getFullYear()}`,
-    tahun: d.getFullYear(),
-    bulan: d.getMonth() + 1,
-    minggu: Math.ceil((d.getDate()) / 7),
-    penjualan: r.penjualan
-  };
+// --- Prepare data ---
+let fullData = [];
+let rekapMingguan = {};
+let rekapBulanan = {};
+let rekapTahunan = {};
+
+rows.forEach((row) => {
+    const date = parseDate(row.tanggal || row.Tanggal);
+    const penjualan = Number(row.penjualan || row.Penjualan || 0);
+
+    if (isNaN(date.getTime())) return; // skip kalau tanggal invalid
+
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;        // 1–12
+    const week = `${year}-W${String(
+        Math.ceil((date.getDate() + new Date(year, 0, 1).getDay()) / 7)
+    ).padStart(2, "0")}`;
+
+    // 1. Simpan data full
+    fullData.push({
+        tanggal: date.toISOString().split("T")[0],
+        year,
+        month,
+        week,
+        penjualan
+    });
+
+    // 2. Rekap mingguan
+    if (!rekapMingguan[week]) rekapMingguan[week] = 0;
+    rekapMingguan[week] += penjualan;
+
+    // 3. Rekap bulanan
+    const bulanKey = `${year}-${String(month).padStart(2, "0")}`;
+    if (!rekapBulanan[bulanKey]) rekapBulanan[bulanKey] = 0;
+    rekapBulanan[bulanKey] += penjualan;
+
+    // 4. Rekap tahunan
+    if (!rekapTahunan[year]) rekapTahunan[year] = 0;
+    rekapTahunan[year] += penjualan;
 });
 
-// === REKAP MINGGUAN ===
-const rekapMingguan = {};
-data.forEach(r => {
-  const key = `${r.tahun}-${r.bulan}-M${r.minggu}`;
-  if (!rekapMingguan[key]) rekapMingguan[key] = 0;
-  rekapMingguan[key] += r.penjualan;
-});
+// Save outputs
+fs.writeFileSync("data/data.json", JSON.stringify(fullData, null, 2));
+fs.writeFileSync("data/rekap-mingguan.json", JSON.stringify(rekapMingguan, null, 2));
+fs.writeFileSync("data/rekap-bulanan.json", JSON.stringify(rekapBulanan, null, 2));
+fs.writeFileSync("data/rekap-tahunan.json", JSON.stringify(rekapTahunan, null, 2));
 
-// === REKAP BULANAN ===
-const rekapBulanan = {};
-data.forEach(r => {
-  const key = `${r.tahun}-${r.bulan}`;
-  if (!rekapBulanan[key]) rekapBulanan[key] = 0;
-  rekapBulanan[key] += r.penjualan;
-});
-
-// === REKAP TAHUNAN ===
-const rekapTahunan = {};
-data.forEach(r => {
-  const key = `${r.tahun}`;
-  if (!rekapTahunan[key]) rekapTahunan[key] = 0;
-  rekapTahunan[key] += r.penjualan;
-});
-
-// === SIMPAN SEMUA FILE JSON ===
-if (!fs.existsSync("json")) fs.mkdirSync("json");
-
-fs.writeFileSync("json/data.json", JSON.stringify(data, null, 2));
-fs.writeFileSync("json/rekap-mingguan.json", JSON.stringify(rekapMingguan, null, 2));
-fs.writeFileSync("json/rekap-bulanan.json", JSON.stringify(rekapBulanan, null, 2));
-fs.writeFileSync("json/rekap-tahunan.json", JSON.stringify(rekapTahunan, null, 2));
-
-console.log("✔ Semua JSON berhasil dibuat!");
+console.log("Konversi selesai → folder /data sudah terupdate");
