@@ -6,28 +6,32 @@ on:
       - "data.xlsx"
       - "convert.js"
 
-      jobs:
-        build:
-          runs-on: ubuntu-latest
-          steps:
-            - name: Checkout Repo
-            uses: actions/checkout@v3
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-            - name: Install Node
-            uses: actions/setup-node@v3
-            with:
-              node-version: 18
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-              - name: Install XLSX
-              run: npm install xlsx
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
 
-              - name: Run converter
-              run: node convert.js
+      - name: Install dependencies
+        run: npm install xlsx
 
-              - name: Commit & Push JSON Output
-              run: |
-              git config --global user.email "action@github.com"
-              git config --global user.name "GitHub Actions"
-              git add json/
-              git commit -m "Auto update JSON from XLSX" || echo "No changes"
-              git push
+      - name: Run converter
+        run: node convert.js
+
+      - name: Commit & push generated JSON
+        env:
+          GIT_AUTHOR_NAME: github-actions
+          GIT_AUTHOR_EMAIL: actions@github.com
+        run: |
+          git config user.name "$GIT_AUTHOR_NAME"
+          git config user.email "$GIT_AUTHOR_EMAIL"
+          git add json/
+          git commit -m "Auto update JSON from XLSX" || echo "No changes to commit"
+          git push || echo "Push failed (check permissions)"
